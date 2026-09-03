@@ -2,29 +2,16 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { categories, defaultProducts, type Product } from "@/lib/catalog";
 import "./catalog.css";
 
-type Product = { id:string; name:string; shortName:string; category:string; image:string; description:string; price:number; tag?:string; sizes?:string[]; colors?:string[] };
 type CartItem = { key:string; productId:string; name:string; image:string; price:number; quantity:number; size?:string; color?:string };
-
-const products:Product[] = [
- {id:"polera",name:"Polera personalizada",shortName:"Poleras",category:"Textil",image:"/products/polera.png",description:"Algodón suave y estampado de alta definición para regalos, equipos y eventos.",price:10990,tag:"Más vendido",sizes:["XS","S","M","L","XL","XXL"],colors:["Blanco","Negro","Azul marino","Rojo"]},
- {id:"poleron",name:"Polerón personalizado",shortName:"Polerones",category:"Textil",image:"/products/poleron.png",description:"Abrigo cómodo con una terminación resistente y un diseño hecho para ti.",price:24990,sizes:["S","M","L","XL","XXL"],colors:["Negro","Azul marino","Gris","Blanco"]},
- {id:"gorra",name:"Gorra personalizada",shortName:"Gorras",category:"Accesorios",image:"/products/gorra.png",description:"Una gorra ajustable para llevar tu nombre, marca o diseño favorito.",price:8990,colors:["Negro","Azul marino","Blanco","Rojo"]},
- {id:"delantal",name:"Delantal parrillero",shortName:"Delantales",category:"Accesorios",image:"/products/delantal.png",description:"Delantal de mezclilla con bolsillos, ideal para parrilla, cocina y regalos.",price:15990,tag:"Nuevo",colors:["Mezclilla azul","Negro"]},
- {id:"chapitas",name:"Set de chapitas",shortName:"Chapitas",category:"Detalles",image:"/products/chapitas.png",description:"Chapitas personalizadas para celebraciones, campañas y recuerdos.",price:4990},
- {id:"taza",name:"Taza personalizada",shortName:"Tazas",category:"Tazas y vasos",image:"/products/taza.png",description:"La clásica taza de 11 oz con fotografía, frase o gráfica personalizada.",price:6990,tag:"Favorito",colors:["Blanco","Interior negro","Interior rojo"]},
- {id:"tazon",name:"Tazón personalizado",shortName:"Tazones",category:"Tazas y vasos",image:"/products/tazon.png",description:"Formato de mayor capacidad para disfrutar bebidas calientes con estilo propio.",price:8990,colors:["Blanco","Negro"]},
- {id:"shopero",name:"Shopero personalizado",shortName:"Shoperos",category:"Tazas y vasos",image:"/products/shopero.png",description:"Shopero de vidrio con impresión personalizada para regalar y celebrar.",price:10990},
- {id:"topper",name:"Topper de torta",shortName:"Toppers",category:"Celebraciones",image:"/products/topper.png",description:"Nombre, edad y temática para darle el toque final a cada celebración.",price:7990,colors:["Dorado","Plateado","Negro","Multicolor"]},
-];
-
-const categories=["Todos","Textil","Accesorios","Tazas y vasos","Detalles","Celebraciones"];
 const money=new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0});
 
 function Brand(){return <a className="brand" href="#inicio" aria-label="Ir al inicio de MAVI Personalizados"><Image className="official-logo" src="/brand/mavi-personalizados-logo.png" alt="MAVI Personalizados" width={768} height={768} priority/></a>}
 
 export default function Home(){
+ const [products,setProducts]=useState<Product[]>(defaultProducts);
  const [query,setQuery]=useState("");
  const [category,setCategory]=useState("Todos");
  const [menuOpen,setMenuOpen]=useState(false);
@@ -38,14 +25,13 @@ export default function Home(){
  const [orderNumber,setOrderNumber]=useState("");
  const [ready,setReady]=useState(false);
 
- useEffect(()=>{try{const saved=localStorage.getItem("mavi-cart");if(saved)setCart(JSON.parse(saved))}catch{}setReady(true)},[]);
+ useEffect(()=>{let active=true;Promise.resolve().then(()=>{try{const saved=localStorage.getItem("mavi-cart");if(saved&&active)setCart(JSON.parse(saved))}catch{}if(active)setReady(true)});fetch("/api/products",{cache:"no-store"}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{if(active)setProducts(data)}).catch(()=>{});return()=>{active=false}},[]);
  useEffect(()=>{if(ready)localStorage.setItem("mavi-cart",JSON.stringify(cart))},[cart,ready]);
 
- const visible=useMemo(()=>products.filter(product=>(category==="Todos"||product.category===category)&&(`${product.name} ${product.category} ${product.description}`).toLowerCase().includes(query.trim().toLowerCase())),[category,query]);
+ const visible=useMemo(()=>products.filter(product=>(category==="Todos"||product.category===category)&&(`${product.name} ${product.category} ${product.description}`).toLowerCase().includes(query.trim().toLowerCase())),[category,query,products]);
  const itemCount=cart.reduce((sum,item)=>sum+item.quantity,0);
  const subtotal=cart.reduce((sum,item)=>sum+item.price*item.quantity,0);
 
- function chooseCategory(value:string){setCategory(value);setMenuOpen(false);document.getElementById("productos")?.scrollIntoView({behavior:"smooth"})}
  function openProduct(product:Product){setSelected(product);setSelectedSize(product.sizes?.[0]??"");setSelectedColor(product.colors?.[0]??"");setQuantity(1)}
  function addProduct(product:Product,qty=1,size="",color=""){
   const key=`${product.id}-${size}-${color}`;
@@ -60,7 +46,7 @@ export default function Home(){
   <header className="store-header"><Brand/><label className="search-box"><span aria-hidden="true">⌕</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="¿Qué producto buscas?" aria-label="Buscar productos"/>{query&&<button onClick={()=>setQuery("")} aria-label="Limpiar búsqueda">×</button>}</label><button className="cart-button" onClick={()=>setCartOpen(true)} aria-label={`Abrir carro, ${itemCount} productos`}><span className="bag-icon">▱</span><span><small>Tu carro</small><strong>{itemCount} {itemCount===1?"producto":"productos"}</strong></span>{itemCount>0&&<b>{itemCount}</b>}</button></header>
   <nav className="store-nav"><div className="category-menu"><button className="category-trigger" onClick={()=>setMenuOpen(!menuOpen)} aria-expanded={menuOpen}><span>☰</span> PRODUCTOS <b>⌄</b></button>{menuOpen&&<div className="category-dropdown">{products.map(product=><button key={product.id} onClick={()=>openProduct(product)}><Image src={product.image} alt="" width={44} height={44}/><span>{product.shortName}</span><b>›</b></button>)}</div>}</div><div className="nav-links"><a href="#inicio">Inicio</a><a href="#productos">Tienda</a><a href="#como-comprar">Cómo comprar</a><a href="#contacto">Contacto</a></div><a className="nav-cta" href="#productos">Comprar ahora</a></nav>
 
-  <section className="shop-hero"><div className="hero-copy"><p className="eyebrow">CREADO PARA TI</p><h1>Tu idea.<br/><em>Tu estilo.</em></h1><p>Productos personalizados para regalar, celebrar o darle identidad a tu emprendimiento.</p><a className="primary" href="#productos">Explorar productos <span>→</span></a><div className="hero-points"><span>✓ Atención personalizada</span><span>✓ Envíos a todo Chile</span></div></div><div className="hero-showcase"><button className="hero-main" onClick={()=>openProduct(products[0])}><Image src="/products/polera.png" alt="Polera personalizada" width={900} height={900} priority/><span><b>Poleras personalizadas</b><small>Ver producto →</small></span></button><button onClick={()=>openProduct(products[5])}><Image src="/products/taza.png" alt="Taza personalizada" width={700} height={700}/><span><b>Regalos únicos</b><small>Desde {money.format(products[5].price)}</small></span></button><button onClick={()=>openProduct(products[8])}><Image src="/products/topper.png" alt="Topper personalizado" width={700} height={700}/><span><b>Momentos especiales</b><small>Ver toppers →</small></span></button></div></section>
+  <section className="shop-hero"><div className="hero-copy"><p className="eyebrow">CREADO PARA TI</p><h1>Tu idea.<br/><em>Tu estilo.</em></h1><p>Productos personalizados para regalar, celebrar o darle identidad a tu emprendimiento.</p><a className="primary" href="#productos">Explorar productos <span>→</span></a><div className="hero-points"><span>✓ Atención personalizada</span><span>✓ Envíos a todo Chile</span></div></div><div className="hero-showcase">{[products.find(item=>item.id==="polera")??products[0],products.find(item=>item.id==="taza")??products[1],products.find(item=>item.id==="topper")??products[2]].filter(Boolean).map((product,index)=><button key={product.id} className={index===0?"hero-main":""} onClick={()=>openProduct(product)}><Image src={product.image} alt={product.name} width={index===0?900:700} height={index===0?900:700} priority={index===0}/><span><b>{index===0?"Poleras personalizadas":index===1?"Regalos únicos":"Momentos especiales"}</b><small>{index===1?`Desde ${money.format(product.price)}`:"Ver producto →"}</small></span></button>)}</div></section>
 
   <section className="service-strip"><article><span>✦</span><div><b>Personalizado por MAVI</b><small>Diseños preparados con dedicación.</small></div></article><article><span>⌁</span><div><b>Despacho flexible</b><small>Retiro, Santiago y regiones.</small></div></article><article><span>✓</span><div><b>Compra acompañada</b><small>Confirmamos cada detalle antes de producir.</small></div></article></section>
 
@@ -72,7 +58,7 @@ export default function Home(){
 
   <section id="como-comprar" className="buy-steps"><div className="section-heading centered"><div><p className="eyebrow">ASÍ DE SIMPLE</p><h2>Compra en tres pasos</h2></div></div><div><article><span>01</span><h3>Elige</h3><p>Selecciona tu producto, opciones y cantidad.</p></article><article><span>02</span><h3>Confirma</h3><p>Completa tus datos y selecciona el tipo de entrega.</p></article><article><span>03</span><h3>Coordinamos</h3><p>Revisamos tu pedido y te enviamos los datos de transferencia.</p></article></div></section>
 
-  <footer id="contacto"><div className="footer-brand"><Brand/><p>Productos personalizados para expresar, regalar y celebrar.</p></div><div><h3>Tienda</h3>{products.slice(0,6).map(product=><button key={product.id} onClick={()=>openProduct(product)}>{product.shortName}</button>)}</div><div><h3>Ayuda</h3><a href="#como-comprar">Cómo comprar</a><button onClick={()=>setCartOpen(true)}>Ver mi carro</button><a href="#productos">Productos</a></div><div><h3>MAVI Personalizados</h3><span>Santiago, Chile</span><span>Envíos a todo Chile</span><small>Los datos de contacto se incorporarán antes del lanzamiento.</small></div></footer><div className="copyright">© 2026 MAVI Personalizados</div>
+  <footer id="contacto"><div className="footer-brand"><Brand/><p>Productos personalizados para expresar, regalar y celebrar.</p></div><div><h3>Tienda</h3>{products.slice(0,6).map(product=><button key={product.id} onClick={()=>openProduct(product)}>{product.shortName}</button>)}</div><div><h3>Ayuda</h3><a href="#como-comprar">Cómo comprar</a><button onClick={()=>setCartOpen(true)}>Ver mi carro</button><a href="#productos">Productos</a><a href="/admin">Administrar</a></div><div><h3>MAVI Personalizados</h3><span>Santiago, Chile</span><span>Envíos a todo Chile</span><small>Los datos de contacto se incorporarán antes del lanzamiento.</small></div></footer><div className="copyright">© 2026 MAVI Personalizados</div>
 
   {selected&&<div className="overlay" onMouseDown={()=>setSelected(null)}><section className="product-modal" onMouseDown={event=>event.stopPropagation()} role="dialog" aria-modal="true" aria-label={selected.name}><button className="close" onClick={()=>setSelected(null)} aria-label="Cerrar">×</button><div className="modal-gallery"><Image src={selected.image} alt={selected.name} width={900} height={900}/><div><button className="active"><Image src={selected.image} alt="Vista principal" width={160} height={160}/></button><button><Image src={selected.image} alt="Vista de detalle" width={160} height={160}/></button></div></div><div className="modal-copy"><p className="eyebrow">{selected.category}</p><h2>{selected.name}</h2><p>{selected.description}</p><div className="modal-price"><span>Desde</span><strong>{money.format(selected.price)}</strong></div>{selected.sizes&&<fieldset><legend>Talla</legend><div className="option-row">{selected.sizes.map(size=><button type="button" key={size} className={selectedSize===size?"active":""} onClick={()=>setSelectedSize(size)}>{size}</button>)}</div></fieldset>}{selected.colors&&<fieldset><legend>Color</legend><select value={selectedColor} onChange={event=>setSelectedColor(event.target.value)}>{selected.colors.map(color=><option key={color}>{color}</option>)}</select></fieldset>}<div className="purchase-row"><div className="quantity"><button onClick={()=>setQuantity(Math.max(1,quantity-1))}>−</button><span>{quantity}</span><button onClick={()=>setQuantity(quantity+1)}>+</button></div><button className="primary" onClick={()=>addProduct(selected,quantity,selectedSize,selectedColor)}>Agregar al carro</button></div><small className="availability">La disponibilidad y el diseño se confirman antes de la producción.</small></div></section></div>}
 
